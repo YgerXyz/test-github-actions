@@ -27,16 +27,16 @@ jobs:
       # 使用 pyinstaller 打包 main.py
       - name: Package with PyInstaller
         run: |
-          python -m PyInstaller -F --windowed main.py
+          python -m PyInstaller -F --windowed main.py  # 使用 --windowed 标志
 
       # 创建 Release 并上传打包文件
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use the default GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN
         with:
-          tag_name: ${{ github.ref_name }}  # Use github.ref_name instead of github.ref
+          tag_name: ${{ github.ref_name }}  # 使用 github.ref_name 作为 tag 名称
           release_name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
@@ -45,7 +45,7 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use the default GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./dist/main.exe  # PyInstaller 生成的 .exe 文件路径
