@@ -2,8 +2,10 @@ name: Release and Package
 
 on:
   push:
+    branches:
+      - 'main'  # 推送到 main 分支时触发
     tags:
-      - "v*"  # 仅推送以 "v" 开头的标签时触发
+      - "v*"  # 推送以 "v" 开头的标签时触发
 
 jobs:
   build:
@@ -56,5 +58,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./dist/${{ github.repository }}-${GITHUB_REF#refs/tags/}.exe  # 生成的打包文件路径
-          asset_name: ${{ github.repository }}-${GITHUB_REF#refs/tags/}.exe
+          asset_name: ${{ github.repository }}-${GITHUB_REF#refs/tags/}.exe  # 固定的文件名
           asset_content_type: application/octet-stream
