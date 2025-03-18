@@ -29,17 +29,10 @@ jobs:
       # 使用 pyinstaller 打包 main.py
       - name: Package with PyInstaller
         run: |
-          # 使用 PyInstaller 打包，生成项目名称.exe 格式的文件
-          python -m PyInstaller -F --windowed main.py
-          # 获取仓库名称（repo name）并重命名生成的文件
+          # 获取仓库名称（repo name）并直接设置文件名
           $repoName = $env:GITHUB_REPOSITORY.Split('/')[1]  # 获取仓库名称
-          $outputPath = "./dist/$repoName.exe"
-          # 确保目标目录存在
-          if (-not (Test-Path "./dist")) {
-            New-Item -ItemType Directory -Path "./dist"
-          }
-          # 重命名生成的文件
-          Rename-Item -Path "./dist/main.exe" -NewName $outputPath
+          # 使用 PyInstaller 打包，直接指定输出文件名
+          python -m PyInstaller -F --windowed --name $repoName main.py
 
       # 创建 Release 并上传打包文件
       - name: Create Release
