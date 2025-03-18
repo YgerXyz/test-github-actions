@@ -36,8 +36,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN
         with:
-          tag_name: release-${{ github.run_id }}  # 使用唯一的 tag 名称
-          release_name: Release ${{ github.run_id }}
+          tag_name: ${{ steps.create_release.outputs.tag_name }}
+          release_name: ${{ steps.create_release.outputs.tag_name }}
           draft: false
           prerelease: false
 
