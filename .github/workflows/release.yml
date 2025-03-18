@@ -2,10 +2,8 @@ name: Release and Package
 
 on:
   push:
-    branches:
-      - main  # 推送到 main 分支时触发
     tags:
-      - "v*"  # 推送以 "v" 开头的标签时触发
+      - "v*"  # 仅推送以 "v" 开头的标签时触发
 
 jobs:
   build:
@@ -31,14 +29,19 @@ jobs:
       # 使用 pyinstaller 打包 main.py
       - name: Package with PyInstaller
         run: |
+          # 获取标签名称，去掉 "v" 前缀
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          # 使用 PyInstaller 打包，生成项目名称-tag.exe 格式的文件
           python -m PyInstaller -F --windowed main.py
+          # 重命名生成的文件
+          mv ./dist/main.exe ./dist/${{ github.repository }}-${TAG_NAME}.exe
 
       # 创建 Release 并上传打包文件
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
@@ -49,9 +52,9 @@ jobs:
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/main.exe  # PyInstaller 生成的 .exe 文件路径
-          asset_name: main.exe
+          asset_path: ./dist/${{ github.repository }}-${GITHUB_REF#refs/tags/}.exe  # 生成的打包文件路径
+          asset_name: ${{ github.repository }}-${GITHUB_REF#refs/tags/}.exe
           asset_content_type: application/octet-stream
