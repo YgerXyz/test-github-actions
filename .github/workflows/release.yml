@@ -31,7 +31,7 @@ jobs:
       # 使用 pyinstaller 打包 main.py
       - name: Package with PyInstaller
         run: |
-          pyinstaller -F --windowed main.py
+          python -m PyInstaller -F --windowed main.py
 
       # 创建 Release 并上传打包文件
       - name: Create Release
