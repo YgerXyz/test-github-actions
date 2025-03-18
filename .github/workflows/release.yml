@@ -33,7 +33,7 @@ jobs:
         pyinstaller -F --noconsole main.py
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 使用最新版本 v4
       with:
         name: windows-application
         path: dist/  # PyInstaller 输出的目录
