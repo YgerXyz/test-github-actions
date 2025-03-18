@@ -2,8 +2,8 @@ name: Build and Release Windows Application
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'  # 仅当推送的标签以 "v" 开头时触发（例如 v1.0.0）
 
 jobs:
   build:
@@ -12,6 +12,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # 获取完整的 Git 历史记录，以便正确提取标签
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -27,10 +29,25 @@ jobs:
       run: |
         pip install pyinstaller
 
+    - name: Get version from tag
+      id: get_version
+      run: |
+        # 从 github.ref 中提取标签名称（例如 refs/tags/v1.0.0）
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        # 去掉标签名称中的 "v" 前缀（例如 v1.0.0 -> 1.0.0）
+        VERSION=${TAG_NAME#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+
     - name: Package application
       run: |
-        # 使用 PyInstaller 打包 Python 程序
-        pyinstaller -F --noconsole main.py
+        # 使用 PyInstaller 打包 Python 程序，并将版本号嵌入文件名
+        pyinstaller -F --noconsole --name main_${{ steps.get_version.outputs.version }} main.py
+
+    - name: List dist directory
+      run: |
+        # 列出 dist 目录内容，确保文件已生成
+        dir dist
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4  # 使用最新版本 v4
@@ -44,8 +61,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN 作为 GitHub Token
       with:
-        tag_name: v1.0.0  # 你可以动态生成版本号
-        release_name: Release v1.0.0
+        tag_name: ${{ github.ref }}  # 使用当前标签名称
+        release_name: Release ${{ steps.get_version.outputs.version }}
         draft: false
         prerelease: false
 
@@ -55,6 +72,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN 作为 GitHub Token
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/main.exe  # 打包后的可执行文件路径
-        asset_name: main.exe
+        asset_path: dist/main_${{ steps.get_version.outputs.version }}.exe  # 打包后的可执行文件路径
+        asset_name: main_${{ steps.get_version.outputs.version }}.exe
         asset_content_type: application/octet-stream
