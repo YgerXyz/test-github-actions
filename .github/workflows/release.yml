@@ -29,20 +29,11 @@ jobs:
       run: |
         pip install pyinstaller
 
-    - name: Get version from tag
-      id: get_version
-      run: |
-        # 从 github.ref 中提取标签名称（例如 refs/tags/v1.0.0）
-        TAG_NAME=${GITHUB_REF#refs/tags/}
-        # 去掉标签名称中的 "v" 前缀（例如 v1.0.0 -> 1.0.0）
-        VERSION=${TAG_NAME#v}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Extracted version: $VERSION"
 
     - name: Package application
       run: |
         # 使用 PyInstaller 打包 Python 程序，并将版本号嵌入文件名
-        pyinstaller -F --noconsole --name main_${{ steps.get_version.outputs.version }} main.py
+        pyinstaller -F --noconsole --name main_${{ github.ref }} main.py
 
     - name: List dist directory
       run: |
@@ -62,7 +53,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN 作为 GitHub Token
       with:
         tag_name: ${{ github.ref }}  # 使用当前标签名称
-        release_name: Release ${{ steps.get_version.outputs.version }}
+        release_name: ${{ github.ref }}
         draft: false
         prerelease: false
 
@@ -72,6 +63,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN 作为 GitHub Token
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/main_${{ steps.get_version.outputs.version }}.exe  # 打包后的可执行文件路径
-        asset_name: main_${{ steps.get_version.outputs.version }}.exe
+        asset_path: dist/main_${{ github.ref }}.exe  # 打包后的可执行文件路径
+        asset_name: main_${{ github.ref }}.exe
         asset_content_type: application/octet-stream
