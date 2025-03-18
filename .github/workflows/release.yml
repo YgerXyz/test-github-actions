@@ -27,7 +27,7 @@ jobs:
       # 使用 pyinstaller 打包 main.py
       - name: Package with PyInstaller
         run: |
-          python -m PyInstaller -F --windowed main.py  # 使用 --windowed 标志
+          python -m PyInstaller -F --windowed main.py
 
       # 创建 Release 并上传打包文件
       - name: Create Release
@@ -36,8 +36,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN
         with:
-          tag_name: ${{ github.ref_name }}  # 使用 github.ref_name 作为 tag 名称
-          release_name: Release ${{ github.ref_name }}
+          tag_name: release-${{ github.run_id }}  # 使用唯一的 tag 名称
+          release_name: Release ${{ github.run_id }}
           draft: false
           prerelease: false
 
