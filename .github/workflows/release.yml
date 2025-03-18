@@ -12,22 +12,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-      with:
-        fetch-depth: 0  # 获取完整的 Git 历史记录，以便正确提取标签
 
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'  # 使用你项目所需的 Python 版本
 
-    - name: Install dependencies
+    - name: Install dependencies and PyInstaller
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Install PyInstaller
-      run: |
-        pip install pyinstaller
+        pip install -r requirements.txt pyinstaller
 
     - name: Extract tag name
       id: extract_tag
@@ -42,17 +36,6 @@ jobs:
       run: |
         # 使用 PyInstaller 打包 Python 程序，并将标签名称嵌入文件名
         pyinstaller -F --noconsole --name main_${{ steps.extract_tag.outputs.tag_name }} main.py
-
-    - name: List dist directory
-      run: |
-        # 列出 dist 目录内容，确保文件已生成
-        dir dist
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4  # 使用最新版本 v4
-      with:
-        name: windows-application
-        path: dist/  # PyInstaller 输出的目录
 
     - name: Create GitHub Release
       id: create_release
