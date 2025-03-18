@@ -34,6 +34,13 @@ jobs:
           # 使用 PyInstaller 打包，直接指定输出文件名
           python -m PyInstaller -F --windowed --name $repoName main.py
 
+      # 获取推送的标签名称，去掉 "refs/tags/" 前缀
+      - name: Set release tag name
+        run: |
+          # 处理 tag 名称，去掉 refs/tags/ 前缀
+          $tagName = $env:GITHUB_REF -replace '^refs/tags/', ''
+          echo "RELEASE_TAG_NAME=$tagName" >> $GITHUB_ENV
+
       # 创建 Release 并上传打包文件
       - name: Create Release
         id: create_release
@@ -41,8 +48,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ env.RELEASE_TAG_NAME }}  # 使用处理后的标签名
+          release_name: Release ${{ env.RELEASE_TAG_NAME }}
           draft: false
           prerelease: false
 
