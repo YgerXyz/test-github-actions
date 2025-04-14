@@ -56,5 +56,5 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: dist/main.exe  # 打包后的可执行文件路径
-        asset_name: main_${{ steps.extract_tag.outputs.tag_name }}.exe  # 上传后的文件名
+        asset_name: document-info-tools_${{ steps.extract_tag.outputs.tag_name }}.exe  # 上传后的文件名
         asset_content_type: application/octet-stream
