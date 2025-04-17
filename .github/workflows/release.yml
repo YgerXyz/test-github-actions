@@ -6,7 +6,7 @@ on:
       - 'v*'  # 仅当推送v开头的标签时触发（如v1.0.0）
 env:
   TARGET_REPO_NAME: "" # 目标发布仓库（格式：owner/repo）
-  USE_UPX: true
+  USE_UPX: false
   DIST_PATH: "/dist"
   BUILD_SCRIPT: "main.py"
 
@@ -29,12 +29,13 @@ jobs:
           # 提取标签名（refs/tags/v1.0.0 -> v1.0.0）
           TAG_NAME=${GITHUB_REF#refs/tags/}
           # 设置全局环境变量
-          Write-Output "CURRENT_REPO_NAME=${CURRENT_REPO}" >> $GITHUB_ENV
-          Write-Output "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-          Write-Output "EXE_NAME=${CURRENT_REPO}_${TAG_NAME}.exe" >> $GITHUB_ENV
+          echo "CURRENT_REPO_NAME=${CURRENT_REPO}" >> $GITHUB_ENV
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "EXE_NAME=${CURRENT_REPO}_${TAG_NAME}.exe" >> $GITHUB_ENV
           # 这里不能引用尚未定义的EXE_NAME，需要直接使用变量
-          Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
-          Write-Output "ZIP_NAME=${CURRENT_REPO}_${TAG_NAME}.zip" >> $GITHUB_ENV
+          echo "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
+          echo "ZIP_NAME=${CURRENT_REPO}_${TAG_NAME}.zip" >> $GITHUB_ENV
+
 
       # --- 构建环境准备 ---
       - name: Set up Python
@@ -86,7 +87,8 @@ jobs:
             $iconArg = "--icon=app.ico"
           }
           pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
-
+          
+          echo "EXE_PATH=dist/app.ico" >> $GITHUB_ENV
 
       - name: Assemble Final Package
         shell: pwsh
