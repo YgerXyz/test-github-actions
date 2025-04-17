@@ -1,60 +1,183 @@
-name: Build and Release
+name: Build Release
 
 on:
   push:
     tags:
-      - 'v*'  # 仅当推送的标签以 "v" 开头时触发（例如 v1.0.0）
+      - 'v*'  # 仅当推送v开头的标签时触发（如v1.0.0）
+env:
+  TARGET_REPO_NAME: "" # 目标发布仓库（格式：owner/repo）
 
 jobs:
   build:
-    runs-on: windows-latest  # 使用 Windows 环境
+    runs-on: windows-latest # 使用Windows最新版作为构建环境
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # --- 初始化阶段 ---
+      - name: Checkout code
+        uses: actions/checkout@v3 # 检出代码到工作目录
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'  # 使用你项目所需的 Python 版本
+      # --- 环境变量设置 ---
+      - name: Setup Environment Variables
+        id: setup_vars
+        shell: bash
+        run: |
+          # 提取仓库名（owner/repo -> repo）
+          CURRENT_REPO=${GITHUB_REPOSITORY#*/}
+          # 提取标签名（refs/tags/v1.0.0 -> v1.0.0）
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          # 设置全局环境变量
+          echo "CURRENT_REPO_NAME=${CURRENT_REPO}" >> $GITHUB_ENV
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "EXE_NAME=${CURRENT_REPO}_${TAG_NAME}.exe" >> $GITHUB_ENV
+          # 这里不能引用尚未定义的EXE_NAME，需要直接使用变量
+          echo "EXE_PATH=dist/${CURRENT_REPO}_${TAG_NAME}.exe" >> $GITHUB_ENV
+          echo "BUILD_SCRIPT=main.py" >> $GITHUB_ENV
+          echo "DIST_PATH=./dist" >> $GITHUB_ENV
+          echo "ZIP_NAME=${CURRENT_REPO}_${TAG_NAME}.zip" >> $GITHUB_ENV
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt pyinstaller
 
-    - name: Extract tag name
-      id: extract_tag
-      shell: pwsh  # 使用 PowerShell 作为脚本解释器
-      run: |
-        # 从 github.ref 中提取标签名称（例如 refs/tags/v1.0.0 -> v1.0.0）
-        $TAG_NAME = $env:GITHUB_REF -replace 'refs/tags/', ''
-        # 使用环境文件设置输出变量
-        echo "tag_name=$TAG_NAME" >> $env:GITHUB_OUTPUT
-        echo "Extracted tag name: $TAG_NAME"
+      # --- 构建环境准备 ---
+      - name: Set up Python
+        uses: actions/setup-python@v4 # 设置Python环境
+        with:
+          python-version: '3.10' # 指定Python 3.10版本
 
-    - name: Build application
-      run: |
-        # 使用 PyInstaller 打包 Python 程序
-        pyinstaller -F --noconsole main.py
+      # --- 安装依赖 ---
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN 作为 GitHub Token
-      with:
-        tag_name: ${{ steps.extract_tag.outputs.tag_name }}  # 使用提取的标签名称
-        release_name: Release ${{ steps.extract_tag.outputs.tag_name }}
-        draft: false
-        prerelease: false
+      # --- 安装Upx依赖 ---
+      - name: Install UPX (Windows)
+        run: |
+          # 1. 下载 UPX
+          $UPX_URL = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip"
+          Invoke-WebRequest -Uri $UPX_URL -OutFile upx.zip
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # 使用 MY_TOKEN 作为 GitHub Token
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/main.exe  # 打包后的可执行文件路径
-        asset_name: document-info-tools_${{ steps.extract_tag.outputs.tag_name }}.exe  # 上传后的文件名
-        asset_content_type: application/octet-stream
+          # 2. 解压到当前目录的 upx 文件夹
+          Expand-Archive -Path upx.zip -DestinationPath upx
+
+          # 3. UPX 解压后实际路径是 upx/upx-5.0.0-win64/upx.exe
+          #    所以需要进入子目录并找到 upx.exe
+          $UPX_DIR = Resolve-Path -Path "upx/upx-*win64"
+
+          # 4. 将 UPX 所在目录添加到 PATH
+          echo "$UPX_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+          # 5. 验证是否安装成功（可选）
+          Write-Output "UPX installed at: $UPX_DIR"
+          Get-ChildItem -Path $UPX_DIR
+      # --- 应用构建 ---
+      - name: Build application
+        run: |
+          pyinstaller  --noconsole --onefile --icon=app.ico --distpath "${{ env.DIST_PATH }}"  --name "${{ env.EXE_NAME }}"  ${{ env.BUILD_SCRIPT }}
+          # 更新 EXE_PATH 以匹配自定义名称
+          Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
+
+      - name: Assemble Final Package  # 组装最终发布包
+        shell: pwsh
+        run: |
+          # 需要额外打包的文件/目录（自动合并到已存在的DIST_PATH目录）
+          $additionalFiles = @(
+            "config/*",               # 配置文件目录（包含所有内容）
+            "README.md",              # 说明文档
+            "LICENSE",                # 许可证文件
+            "assets/*"                # 资源目录（包含所有内容）
+          )
+
+          # 确认DIST_PATH目录存在
+          if (-not (Test-Path $env:DIST_PATH)) {
+            Write-Error "Build directory missing: $env:DIST_PATH"
+            exit 1
+          }
+
+          # 添加额外文件到构建目录
+          foreach ($file in $additionalFiles) {
+            if (Test-Path $file) {
+              Copy-Item -Path $file -Destination $env:DIST_PATH -Recurse -Force
+              Write-Output "Added: $file → $env:DIST_PATH"
+            }
+          }
+
+          # 验证最终包内容
+          Write-Output "Final package contents:"
+          Get-ChildItem -Path $env:DIST_PATH -Recurse | Format-Table FullName
+
+      # --- 文件打包 ---
+      - name: Create ZIP package
+        shell: pwsh # 使用PowerShell打包
+        run: |
+          Compress-Archive -Path "$env:DIST_PATH/*" -DestinationPath $env:ZIP_NAME 
+          # 计算并显示压缩包大小
+          $zipSize = (Get-Item $env:ZIP_NAME).Length / 1MB
+          Write-Output "ZIP package created successfully"
+          Write-Output "Location: $env:ZIP_NAME"
+          Write-Output "Size: ${zipSize:N2} MB"
+
+
+      # --- 主仓库发布 ---
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1 # 使用官方Action创建发布
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }} # 主仓库token
+        with:
+          tag_name: ${{ env.TAG_NAME }} # 使用提取的标签名称
+          release_name: Release ${{ env.TAG_NAME }} # 发布名称
+          draft: false # 非草稿模式
+          prerelease: false # 非预发布
+
+        # --- 上传EXE文件 ---
+      - name: Upload EXE Assets
+        uses: actions/upload-release-asset@v1 # 上传发布文件
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # 动态获取上传URL
+          asset_path: ${{ env.EXE_PATH }}
+          asset_name: ${{ env.EXE_NAME }}
+          asset_content_type: application/octet-stream # EXE文件类型
+
+        # --- 上传ZIP文件 ---
+      - name: Upload ZIP Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.ZIP_NAME }}
+          asset_name: ${{ env.ZIP_NAME }}
+          asset_content_type: application/zip # ZIP文件类型
+
+        # --- 主仓发布（使用第三方Action）---
+        #    - name: Create Primary Release
+        #      uses: softprops/action-gh-release@v1
+        #      id: primary_release
+        #      with:
+        #        files: |
+        #          ${{ env.EXE_PATH }}
+        #          ${{ env.ZIP_NAME }}
+        #        tag_name: ${{ env.TAG_NAME }}
+        #        name: Release ${{ env.TAG_NAME }}
+        #      env:
+        #        GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}
+
+
+      # actions/upload-release-asset@v1 不支持跨仓库操作
+      # --- 跨仓库发布（使用第三方Action）---
+      - name: Cross-Repo Release
+        if: env.TARGET_REPO_NAME != '' # 仅在设置了目标仓库时执行
+        uses: softprops/action-gh-release@v1
+        id: cross_repo_release
+        with:
+          files: | # 要上传的文件列表
+            ${{ env.EXE_PATH }}
+            ${{ env.ZIP_NAME }}
+          tag_name: ${{ env.TAG_NAME }} # 标签名称
+          name: Release ${{ env.TAG_NAME }}
+          repository: ${{ env.TARGET_REPO_NAME }} # 目标仓库
+          # 添加body参数以避免潜在错误
+          body: "Cross-repository release of ${{ env.TAG_NAME }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.TARGET_TOKEN }} # 目标仓库访问token，需要在本仓库进行配置
