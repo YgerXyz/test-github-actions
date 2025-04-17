@@ -98,7 +98,7 @@ jobs:
             "LICENSE",    # 许可证文件
             "assets"      # 整个资源目录
           )
-          
+          New-Item -ItemType Directory -Path $env:DIST_PATH -Force | Out-Null
           # 确认DIST_PATH目录存在
           if (-not (Test-Path $env:DIST_PATH)) {
             Write-Error "Build directory missing: $env:DIST_PATH"
