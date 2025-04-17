@@ -49,73 +49,76 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       # --- 安装Upx依赖 ---
-      - name: Install UPX (Windows)
-        run: |
-          # 1. 下载 UPX
-          $UPX_URL = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip"
-          Invoke-WebRequest -Uri $UPX_URL -OutFile upx.zip
-
-          # 2. 解压到当前目录的 upx 文件夹
-          Expand-Archive -Path upx.zip -DestinationPath upx
-
-          # 3. UPX 解压后实际路径是 upx/upx-5.0.0-win64/upx.exe
-          #    所以需要进入子目录并找到 upx.exe
-          $UPX_DIR = Resolve-Path -Path "upx/upx-*win64"
-
-          # 4. 将 UPX 所在目录添加到 PATH
-          echo "$UPX_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append
-
-          # 5. 验证是否安装成功（可选）
-          Write-Output "UPX installed at: $UPX_DIR"
-          Get-ChildItem -Path $UPX_DIR
+      #      - name: Install UPX (Windows)
+      #        run: |
+      #          # 1. 下载 UPX
+      #          $UPX_URL = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip"
+      #          Invoke-WebRequest -Uri $UPX_URL -OutFile upx.zip
+      #
+      #          # 2. 解压到当前目录的 upx 文件夹
+      #          Expand-Archive -Path upx.zip -DestinationPath upx
+      #
+      #          # 3. UPX 解压后实际路径是 upx/upx-5.0.0-win64/upx.exe
+      #          #    所以需要进入子目录并找到 upx.exe
+      #          $UPX_DIR = Resolve-Path -Path "upx/upx-*win64"
+      #
+      #          # 4. 将 UPX 所在目录添加到 PATH
+      #          echo "$UPX_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append
+      #
+      #          # 5. 验证是否安装成功（可选）
+      #          Write-Output "UPX installed at: $UPX_DIR"
+      #          Get-ChildItem -Path $UPX_DIR
 
       # --- 应用构建 ---
-      - name: Build application
-        run: |
-          # 验证必要文件存在
-          if (-not (Test-Path "${{ env.BUILD_SCRIPT }}")) {
-            Write-Error "Build script not found at ${{ env.BUILD_SCRIPT }}"
-            exit 1
-          }
-          # 判断icon是否存在
-          if (-not (Test-Path "app.ico")) {
-            Write-Warning "Icon file app.ico not found - proceeding without icon"
-            $iconArg = ""
-          } else {
-            $iconArg = "--icon=app.ico"
-          }
-          pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
-          # 更新 EXE_PATH 以匹配自定义名称
-          Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
+      #      - name: Build application
+      #        run: |
+      #          # 验证必要文件存在
+      #          if (-not (Test-Path "${{ env.BUILD_SCRIPT }}")) {
+      #            Write-Error "Build script not found at ${{ env.BUILD_SCRIPT }}"
+      #            exit 1
+      #          }
+      #          # 判断icon是否存在
+      #          if (-not (Test-Path "app.ico")) {
+      #            Write-Warning "Icon file app.ico not found - proceeding without icon"
+      #            $iconArg = ""
+      #          } else {
+      #            $iconArg = "--icon=app.ico"
+      #          }
+      #          pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
+      #          # 更新 EXE_PATH 以匹配自定义名称
+      #          Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
 
-      - name: Assemble Final Package # 组装最终发布包
+      - name: Assemble Final Package
         shell: pwsh
         run: |
           # 需要额外打包的文件/目录（自动合并到已存在的DIST_PATH目录）
           $additionalFiles = @(
-            "config",    # 整个配置文件目录
+            "config",     # 整个配置文件目录
             "README.md",  # 说明文档
             "LICENSE",    # 许可证文件
             "assets"      # 整个资源目录
           )
+          
           # 确认DIST_PATH目录存在
           if (-not (Test-Path $env:DIST_PATH)) {
             Write-Error "Build directory missing: $env:DIST_PATH"
             exit 1
           }
-
-          # 添加额外文件到构建目录
+          
+          # 添加额外文件到构建目录（保持原始结构）
           foreach ($item in $additionalFiles) {
             if (Test-Path $item) {
-            $destPath = Join-Path $destDir (Split-Path $item -Leaf)
-            Copy-Item -Path $item -Destination $destPath -Recurse -Force
-            Write-Host "Copied: $item → $destPath"
+              $destPath = Join-Path $env:DIST_PATH (Split-Path $item -Leaf)
+              Copy-Item -Path $item -Destination $destPath -Recurse -Force
+              Write-Host "Copied with structure: $item → $destPath"
             }
           }
-
+          
           # 验证最终包内容
-          Write-Output "Final package contents:"
-          Get-ChildItem -Path $env:DIST_PATH -Recurse | Format-Table FullName
+          Write-Output "`nFinal package contents (with structure):"
+          Get-ChildItem -Path $env:DIST_PATH -Recurse | 
+            Select-Object FullName, Length, LastWriteTime |
+            Format-Table -AutoSize
 
       # --- 文件打包 ---
       - name: Create ZIP package
