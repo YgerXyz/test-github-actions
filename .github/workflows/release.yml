@@ -89,7 +89,11 @@ jobs:
           }
           pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
           
-          echo "EXE_PATH=dist/app.ico" >> $GITHUB_ENV
+      - name: Setup Variables
+        id: aaaa
+        shell: bash
+        run: |
+          echo "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
 
       - name: Assemble Final Package
         shell: pwsh
