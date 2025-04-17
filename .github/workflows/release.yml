@@ -73,6 +73,7 @@ jobs:
 
       # --- 应用构建 ---
       - name: Build application
+        shell: pwsh
         run: |
           # 验证必要文件存在
           if (-not (Test-Path "${{ env.BUILD_SCRIPT }}")) {
