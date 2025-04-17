@@ -6,6 +6,9 @@ on:
       - 'v*'  # 仅当推送v开头的标签时触发（如v1.0.0）
 env:
   TARGET_REPO_NAME: "" # 目标发布仓库（格式：owner/repo）
+  USE_UPX: true
+  DIST_PATH: "/dist"
+  BUILD_SCRIPT: "main.py"
 
 jobs:
   build:
@@ -30,9 +33,7 @@ jobs:
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
           echo "EXE_NAME=${CURRENT_REPO}_${TAG_NAME}.exe" >> $GITHUB_ENV
           # 这里不能引用尚未定义的EXE_NAME，需要直接使用变量
-          echo "EXE_PATH=dist/${CURRENT_REPO}_${TAG_NAME}.exe" >> $GITHUB_ENV
-          echo "BUILD_SCRIPT=main.py" >> $GITHUB_ENV
-          echo "DIST_PATH=./dist" >> $GITHUB_ENV
+          echo "EXE_PATH=" >> $GITHUB_ENV  #置空，后面设置
           echo "ZIP_NAME=${CURRENT_REPO}_${TAG_NAME}.zip" >> $GITHUB_ENV
 
 
@@ -49,44 +50,45 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       # --- 安装Upx依赖 ---
-      #      - name: Install UPX (Windows)
-      #        run: |
-      #          # 1. 下载 UPX
-      #          $UPX_URL = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip"
-      #          Invoke-WebRequest -Uri $UPX_URL -OutFile upx.zip
-      #
-      #          # 2. 解压到当前目录的 upx 文件夹
-      #          Expand-Archive -Path upx.zip -DestinationPath upx
-      #
-      #          # 3. UPX 解压后实际路径是 upx/upx-5.0.0-win64/upx.exe
-      #          #    所以需要进入子目录并找到 upx.exe
-      #          $UPX_DIR = Resolve-Path -Path "upx/upx-*win64"
-      #
-      #          # 4. 将 UPX 所在目录添加到 PATH
-      #          echo "$UPX_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append
-      #
-      #          # 5. 验证是否安装成功（可选）
-      #          Write-Output "UPX installed at: $UPX_DIR"
-      #          Get-ChildItem -Path $UPX_DIR
+      - name: Install UPX (Windows)
+        if: runner.os == 'Windows' && env.USE_UPX == 'true'
+        run: |
+          # 1. 下载 UPX
+          $UPX_URL = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip"
+          Invoke-WebRequest -Uri $UPX_URL -OutFile upx.zip
+
+          # 2. 解压到当前目录的 upx 文件夹
+          Expand-Archive -Path upx.zip -DestinationPath upx
+
+          # 3. UPX 解压后实际路径是 upx/upx-5.0.0-win64/upx.exe
+          #  所以需要进入子目录并找到 upx.exe
+          $UPX_DIR = Resolve-Path -Path "upx/upx-*win64"
+
+          # 4. 将 UPX 所在目录添加到 PATH
+          echo "$UPX_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+          # 5. 验证是否安装成功（可选）
+          Write-Output "UPX installed at: $UPX_DIR"
+          Get-ChildItem -Path $UPX_DIR
 
       # --- 应用构建 ---
-      #      - name: Build application
-      #        run: |
-      #          # 验证必要文件存在
-      #          if (-not (Test-Path "${{ env.BUILD_SCRIPT }}")) {
-      #            Write-Error "Build script not found at ${{ env.BUILD_SCRIPT }}"
-      #            exit 1
-      #          }
-      #          # 判断icon是否存在
-      #          if (-not (Test-Path "app.ico")) {
-      #            Write-Warning "Icon file app.ico not found - proceeding without icon"
-      #            $iconArg = ""
-      #          } else {
-      #            $iconArg = "--icon=app.ico"
-      #          }
-      #          pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
-      #          # 更新 EXE_PATH 以匹配自定义名称
-      #          Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
+      - name: Build application
+        run: |
+          # 验证必要文件存在
+          if (-not (Test-Path "${{ env.BUILD_SCRIPT }}")) {
+            Write-Error "Build script not found at ${{ env.BUILD_SCRIPT }}"
+            exit 1
+          }
+          # 判断icon是否存在
+          if (-not (Test-Path "app.ico")) {
+            Write-Warning "Icon file app.ico not found - proceeding without icon"
+            $iconArg = ""
+          } else {
+            $iconArg = "--icon=app.ico"
+          }
+          pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
+          # 更新 EXE_PATH 以匹配自定义名称
+          Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
 
       - name: Assemble Final Package
         shell: pwsh
@@ -98,11 +100,10 @@ jobs:
             "LICENSE",    # 许可证文件
             "assets"      # 整个资源目录
           )
-          New-Item -ItemType Directory -Path $env:DIST_PATH -Force | Out-Null
-          # 确认DIST_PATH目录存在
+          # 判断DIST_PATH目录存在
           if (-not (Test-Path $env:DIST_PATH)) {
-            Write-Error "Build directory missing: $env:DIST_PATH"
-            exit 1
+            New-Item -ItemType Directory -Path $env:DIST_PATH -Force | Out-Null
+            Write-Host "Created directory: $env:DIST_PATH"
           }
           
           # 添加额外文件到构建目录（保持原始结构）
