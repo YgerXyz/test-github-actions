@@ -68,24 +68,36 @@ jobs:
           # 5. 验证是否安装成功（可选）
           Write-Output "UPX installed at: $UPX_DIR"
           Get-ChildItem -Path $UPX_DIR
+
       # --- 应用构建 ---
       - name: Build application
         run: |
-          pyinstaller  --noconsole --onefile --icon=app.ico --distpath "${{ env.DIST_PATH }}"  --name "${{ env.EXE_NAME }}"  ${{ env.BUILD_SCRIPT }}
+          # 验证必要文件存在
+          if (-not (Test-Path "${{ env.BUILD_SCRIPT }}")) {
+            Write-Error "Build script not found at ${{ env.BUILD_SCRIPT }}"
+            exit 1
+          }
+          # 判断icon是否存在
+          if (-not (Test-Path "app.ico")) {
+            Write-Warning "Icon file app.ico not found - proceeding without icon"
+            $iconArg = ""
+          } else {
+            $iconArg = "--icon=app.ico"
+          }
+          pyinstaller --noconsole --onefile $iconArg --distpath "${{ env.DIST_PATH }}" --name "${{ env.EXE_NAME }}" ${{ env.BUILD_SCRIPT }}
           # 更新 EXE_PATH 以匹配自定义名称
           Write-Output "EXE_PATH=${{ env.DIST_PATH }}/${{ env.EXE_NAME }}" >> $GITHUB_ENV
 
-      - name: Assemble Final Package  # 组装最终发布包
+      - name: Assemble Final Package # 组装最终发布包
         shell: pwsh
         run: |
           # 需要额外打包的文件/目录（自动合并到已存在的DIST_PATH目录）
           $additionalFiles = @(
-            "config/*",               # 配置文件目录（包含所有内容）
-            "README.md",              # 说明文档
-            "LICENSE",                # 许可证文件
-            "assets/*"                # 资源目录（包含所有内容）
+            "config",    # 整个配置文件目录
+            "README.md",  # 说明文档
+            "LICENSE",    # 许可证文件
+            "assets"      # 整个资源目录
           )
-
           # 确认DIST_PATH目录存在
           if (-not (Test-Path $env:DIST_PATH)) {
             Write-Error "Build directory missing: $env:DIST_PATH"
@@ -93,10 +105,11 @@ jobs:
           }
 
           # 添加额外文件到构建目录
-          foreach ($file in $additionalFiles) {
-            if (Test-Path $file) {
-              Copy-Item -Path $file -Destination $env:DIST_PATH -Recurse -Force
-              Write-Output "Added: $file → $env:DIST_PATH"
+          foreach ($item in $additionalFiles) {
+            if (Test-Path $item) {
+            $destPath = Join-Path $destDir (Split-Path $item -Leaf)
+            Copy-Item -Path $item -Destination $destPath -Recurse -Force
+            Write-Host "Copied: $item → $destPath"
             }
           }
 
